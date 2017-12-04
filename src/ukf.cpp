@@ -100,11 +100,11 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 
             x_ << rho * cos(phi), rho * sin(phi), 3, rhodot * cos(phi), rhodot * sin(phi);
 
-            P_ << std_radr_*std_radr_, 0, 0, 0, 0,
-                    0, std_radr_*std_radr_, 0, 0, 0,
+            P_ <<   1, 0, 0, 0, 0,
+                    0, 1, 0, 0, 0,
                     0, 0, 1, 0, 0,
-                    0, 0, 0, std_radphi_ * std_radphi_, 0,
-                    0, 0, 0, 0, std_radphi_*std_radphi_;
+                    0, 0, 0, 1, 0,
+                    0, 0, 0, 0, 1;
         }
         else if (meas_package.sensor_type_ == MeasurementPackage::LASER)
         {
@@ -112,8 +112,8 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
             double py = meas_package.raw_measurements_(1);
             x_ << px, py, 3, 0.4, 0.0;
 
-            P_ << std_laspx_*std_laspx_, 0, 0, 0, 0,
-                    0, std_laspy_*std_laspy_, 0, 0, 0,
+            P_ <<   1, 0, 0, 0, 0,
+                    0, 1, 0, 0, 0,
                     0, 0, 1, 0, 0,
                     0, 0, 0, 1, 0,
                     0, 0, 0, 0, 1;
