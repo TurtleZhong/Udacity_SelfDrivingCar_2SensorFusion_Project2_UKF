@@ -15,35 +15,31 @@ VectorXd Tools::CalculateRMSE(const vector<VectorXd> &estimations,
   TODO:
     * Calculate the RMSE here.
   */
-    /**
-    TODO:
-      * Calculate the RMSE here.
-    */
-      VectorXd rmse(4);
-      rmse << 0,0,0,0;
+    VectorXd rmse(4);
+    rmse << 0,0,0,0;
 
-      if(estimations.size() == 0){
-        cout << "ERROR: The estimations vector is empty" << endl;
-        return rmse;
-      }
-
-      if(ground_truth.size() == 0){
-        cout << "ERROR: The ground-truth vector is empty" << endl;
-        return rmse;
-      }
-
-      if(estimations.size() != ground_truth.size()){
-        cout << "ERROR: The ground-truth and estimations vectors must have the same size." << endl;
-        return rmse;
-      }
-
-      for(int i=0; i < estimations.size(); ++i){
-        VectorXd diff = estimations[i] - ground_truth[i];
-        diff = diff.array()*diff.array();
-        rmse += diff;
-      }
-
-      rmse = rmse / estimations.size();
-      rmse = rmse.array().sqrt();
+    if(estimations.size() == 0){
+      cout << "ERROR: The estimations is empty" << endl;
       return rmse;
+    }
+
+    if(ground_truth.size() == 0){
+      cout << "ERROR: The groundtruth is empty" << endl;
+      return rmse;
+    }
+
+    if(estimations.size() != ground_truth.size()){
+      cout << "ERROR: Check the two Vector's size! Please" << endl;
+      return rmse;
+    }
+
+    for(int i=0; i < estimations.size(); ++i){
+      VectorXd diff = estimations[i] - ground_truth[i];
+      diff = diff.array()*diff.array();
+      rmse += diff;
+    }
+
+    rmse = rmse / estimations.size();
+    rmse = rmse.array().sqrt();
+    return rmse;
 }

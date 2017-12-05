@@ -64,12 +64,19 @@ public:
   ///* Augmented state dimension
   int n_aug_;
 
+  int n_sig_;
+
   ///* Sigma point spreading parameter
   double lambda_;
 
-  ///* NIS
-  double radar_NIS;
-  double lidar_NIS;
+
+  MatrixXd R_lidar_;
+
+  MatrixXd R_radar_;
+
+  double NIS_radar_;
+
+  double NIS_laser_;
 
 
   /**
@@ -106,6 +113,11 @@ public:
    * @param meas_package The measurement at k+1
    */
   void UpdateRadar(MeasurementPackage meas_package);
+
+  /*
+   * norm the theta to -pi-pi
+   */
+  void NormalizeAngle(VectorXd &vector, int index);
 };
 
 #endif /* UKF_H */
