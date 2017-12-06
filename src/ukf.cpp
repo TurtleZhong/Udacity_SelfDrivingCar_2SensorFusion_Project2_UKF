@@ -27,10 +27,10 @@ UKF::UKF() {
     P_ = MatrixXd(n_x_, n_x_);
 
     // Process noise standard deviation longitudinal acceleration in m/s^2
-    std_a_ = 1.2;
+    std_a_ = 1.8;
 
     // Process noise standard deviation yaw acceleration in rad/s^2
-    std_yawdd_ = 0.6;
+    std_yawdd_ = 0.3;
 
     // Laser measurement noise standard deviation position1 in m
     std_laspx_ = 0.15;
@@ -55,13 +55,15 @@ UKF::UKF() {
   Hint: one or more values initialized above might be wildly off...
   */
 
-    lambda_ = 3 - n_x_;
+
 
     ///* Augmented state dimension
     n_aug_ = n_x_ + 2;
 
     ///* Sigma points dimension
     n_sig_ = 2 * n_aug_ + 1;
+
+    lambda_ = 3 - n_aug_;
 
     // Initialize weights.
     weights_ = VectorXd(n_sig_);
@@ -110,55 +112,61 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   Complete this function! Make sure you switch between lidar and radar
   measurements.
   */
-    if ( !is_initialized_)
+
+    // skip predict/update if sensor type is ignored
+    if ((meas_package.sensor_type_ == MeasurementPackage::RADAR && use_radar_) ||
+        (meas_package.sensor_type_ == MeasurementPackage::LASER && use_laser_))
     {
-        if (meas_package.sensor_type_ == MeasurementPackage::RADAR)
+
+      /*****************************************************************************
+      *  Initialization
+      ****************************************************************************/
+      if (!is_initialized_) {
+
+        x_ << 1, 1, 1, 1, 0.1;
+
+        P_ = MatrixXd::Identity(5,5);
+
+        time_us_ = meas_package.timestamp_;
+
+        if (meas_package.sensor_type_ == MeasurementPackage::LASER && use_laser_)
         {
-            double rho = meas_package.raw_measurements_(0);
-            double phi = meas_package.raw_measurements_(1);
-            double rhodot = meas_package.raw_measurements_(2);
 
-            double v = sqrt(rhodot * cos(phi) + rhodot * sin(phi));
+          x_(0) = meas_package.raw_measurements_(0);
+          x_(1) = meas_package.raw_measurements_(1);
 
-            x_ << rho * cos(phi), rho * sin(phi), v, 0,  0;
-
-            P_ << 1, 0, 0, 0, 0,
-                    0, 1, 0, 0, 0,
-                    0, 0, 1, 0, 0,
-                    0, 0, 0, 1, 0,
-                    0, 0, 0, 0, 1;
-
-        } else
+        }
+        else if (meas_package.sensor_type_ == MeasurementPackage::RADAR && use_radar_)
         {
-            x_ << meas_package.raw_measurements_(0), meas_package.raw_measurements_(1), 0, 0, 0;
-            P_ <<   1, 0, 0, 0, 0,
-                    0, 1, 0, 0, 0,
-                    0, 0, 1, 0, 0,
-                    0, 0, 0, 1, 0,
-                    0, 0, 0, 0, 1;
+
+          double rho = meas_package.raw_measurements_(0);
+          double phi = meas_package.raw_measurements_(1);
+          x_(0) = rho     * cos(phi);
+          x_(1) = rho     * sin(phi);
         }
 
-        // Saving first timestamp in seconds
-        time_us_ = meas_package.timestamp_ ;
-        // done initializing, no need to predict or update
         is_initialized_ = true;
+
         return;
-    }
+      }
 
-    // Calculate dt
-    double delta_t = (meas_package.timestamp_ - time_us_) / 1000000.0;
-    time_us_ = meas_package.timestamp_;
-    // Prediction step
-    Prediction(delta_t);
+      //compute the time elapsed between the current and previous measurements
+      float delta_t = (meas_package.timestamp_ - time_us_) / 1000000.0;	//dt - expressed in seconds
+      time_us_ = meas_package.timestamp_;
 
-    if (meas_package.sensor_type_ == MeasurementPackage::RADAR)
-    {
-        UpdateRadar(meas_package);
-    }
-    if (meas_package.sensor_type_ == MeasurementPackage::LASER)
-    {
+      Prediction(delta_t);
+
+
+      if (meas_package.sensor_type_ == MeasurementPackage::LASER)
+      {
         UpdateLidar(meas_package);
+      }
+      else if (meas_package.sensor_type_ == MeasurementPackage::RADAR)
+      {
+        UpdateRadar(meas_package);
+      }
     }
+
 }
 
 /**
@@ -205,46 +213,46 @@ void UKF::Prediction(double delta_t) {
 
     for (int i = 0; i< n_sig_; i++)
     {
-      //extract values for better readability
-      double p_x = Xsig_aug(0,i);
-      double p_y = Xsig_aug(1,i);
-      double v = Xsig_aug(2,i);
-      double yaw = Xsig_aug(3,i);
-      double yawdot = Xsig_aug(4,i);
-      double niu_a = Xsig_aug(5,i);
-      double niu_yawdd = Xsig_aug(6,i);
+        //extract values for better readability
+        double p_x = Xsig_aug(0,i);
+        double p_y = Xsig_aug(1,i);
+        double v = Xsig_aug(2,i);
+        double yaw = Xsig_aug(3,i);
+        double yawdot = Xsig_aug(4,i);
+        double niu_a = Xsig_aug(5,i);
+        double niu_yawdd = Xsig_aug(6,i);
 
-      double px_p, py_p;
+        double px_p, py_p;
 
-      if (fabs(yawdot) > 0.001)
-      {
-          px_p = p_x + v/yawdot * ( sin (yaw + yawdot*delta_t) - sin(yaw));
-          py_p = p_y + v/yawdot * ( cos(yaw) - cos(yaw+yawdot*delta_t) );
-      }
-      else
-      {
-          px_p = p_x + v*delta_t*cos(yaw);
-          py_p = p_y + v*delta_t*sin(yaw);
-      }
+        if (fabs(yawdot) > 0.001)
+        {
+            px_p = p_x + v/yawdot * ( sin (yaw + yawdot*delta_t) - sin(yaw));
+            py_p = p_y + v/yawdot * ( cos(yaw) - cos(yaw+yawdot*delta_t) );
+        }
+        else
+        {
+            px_p = p_x + v*delta_t*cos(yaw);
+            py_p = p_y + v*delta_t*sin(yaw);
+        }
 
-      double v_p = v;
-      double yaw_p = yaw + yawdot*delta_t;
-      double yawdot_p = yawdot;
+        double v_p = v;
+        double yaw_p = yaw + yawdot*delta_t;
+        double yawdot_p = yawdot;
 
-      //add noise
-      px_p = px_p + 0.5*niu_a*delta_t*delta_t * cos(yaw);
-      py_p = py_p + 0.5*niu_a*delta_t*delta_t * sin(yaw);
-      v_p = v_p + niu_a*delta_t;
+        //add noise
+        px_p = px_p + 0.5*niu_a*delta_t*delta_t * cos(yaw);
+        py_p = py_p + 0.5*niu_a*delta_t*delta_t * sin(yaw);
+        v_p = v_p + niu_a*delta_t;
 
-      yaw_p = yaw_p + 0.5*niu_yawdd*delta_t*delta_t;
-      yawdot_p = yawdot_p + niu_yawdd*delta_t;
+        yaw_p = yaw_p + 0.5*niu_yawdd*delta_t*delta_t;
+        yawdot_p = yawdot_p + niu_yawdd*delta_t;
 
-      //write predicted sigma point into right column
-      Xsig_pred_(0,i) = px_p;
-      Xsig_pred_(1,i) = py_p;
-      Xsig_pred_(2,i) = v_p;
-      Xsig_pred_(3,i) = yaw_p;
-      Xsig_pred_(4,i) = yawdot_p;
+        //write predicted sigma point into right column
+        Xsig_pred_(0,i) = px_p;
+        Xsig_pred_(1,i) = py_p;
+        Xsig_pred_(2,i) = v_p;
+        Xsig_pred_(3,i) = yaw_p;
+        Xsig_pred_(4,i) = yawdot_p;
     }
 
 
@@ -263,7 +271,13 @@ void UKF::Prediction(double delta_t) {
 
     for(int i = 0; i < n_sig_; i++)
     {
-        P += weights_(i) * (Xsig_pred_.block<5,1>(0,i) - x) * (Xsig_pred_.block<5,1>(0,i) - x).transpose();
+        //        P += weights_(i) * (Xsig_pred_.block<5,1>(0,i) - x) * (Xsig_pred_.block<5,1>(0,i) - x).transpose();
+        // state difference
+        VectorXd x_diff = Xsig_pred_.col(i) - x;
+        //angle normalization
+        NormalizeAngle(x_diff,3);
+
+        P = P + weights_(i) * x_diff * x_diff.transpose();
     }
 
 
